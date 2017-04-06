@@ -29,13 +29,12 @@ def restore_model(sess):
 
     saver = tf.train.import_meta_graph(model_meta_file)
 
-    sess.run(tf.global_variables_initializer())
-    saver.restore(sess, tf.train.latest_checkpoint(model_dir))
-
     graph = tf.get_default_graph()
     image_data_tensor = graph.get_tensor_by_name(IMAGE_DATA_TENSOR_NAME)
-    bottleneck_tensor = graph.get_tensor_by_name(BOTTLENECK_TENSOR_NAME)
+    bottleneck_tensor = graph.get_tensor_by_name('input/BottleneckInputPlaceholder:0')
     final_tensor = graph.get_tensor_by_name('final_result:0')
+    sess.run(tf.global_variables_initializer())
+    saver.restore(sess, tf.train.latest_checkpoint(model_dir))
     return image_data_tensor, bottleneck_tensor, final_tensor
 
 
@@ -83,11 +82,15 @@ if __name__ == "__main__":
                                                    image, image_data_tensor,
                                                    bottleneck_tensor)
             bn_values.append(np.squeeze(np.array(bn_value)))
-
+    # bn_values = np.array(bn_values).reshape([-1, 2048])
     final_tensor_value = sess.run(
         [final_tensor],
         feed_dict={bottleneck_tensor: bn_values}
     )
+    print 'final tensor len:'
+    print len(final_tensor_value)
+    print final_tensor_value
+    import pdb;pdb.set_trace()
     final_predict = final_tensor_value[0] - 0.5
     for t, v in zip(time_list, final_predict):
         result_dict[t] = v

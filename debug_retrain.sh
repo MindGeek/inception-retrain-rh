@@ -2,7 +2,7 @@ timestamp=$(date '+%m-%d.%H_%M')
 
 python ./retrain.py \
 --bottleneck_dir=./tf_files/bottlenecks \
---how_many_training_steps 200 \
+--how_many_training_steps 800 \
 --train_batch_size 128 \
 --learning_rate 0.01 \
 --model_dir=./models \

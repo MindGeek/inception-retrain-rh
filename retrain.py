@@ -208,18 +208,6 @@ def add_final_training_ops(class_count, final_tensor_name, bottleneck_tensor):
     # to see in TensorBoard
     layer_name = 'final_training_ops'
     stddev = 0.001
-    '''
-    params = [
-        ([BOTTLENECK_TENSOR_SIZE, 1024], [1024]),
-        ([1024, 1024], [1024]),
-        ([1024, 512], [512]),
-        ([512, 512], [512]),
-        ([512, 256], [256]),
-        ([256, 256], [256]),
-        ([256, 128], [128]),
-        ([128, 1], [1])
-    ]
-    '''
     params = [
         ([BOTTLENECK_TENSOR_SIZE, 1024], [1024]),
         ([1024, 512], [512]),
@@ -227,6 +215,11 @@ def add_final_training_ops(class_count, final_tensor_name, bottleneck_tensor):
         ([256, 128], [128]),
         ([128, 1], [1])
     ]
+    '''
+    params = [
+        ([BOTTLENECK_TENSOR_SIZE, 1], [1])
+    ]
+    '''
     W_list = []
     with tf.name_scope(layer_name):
         for i in range(len(params)):
@@ -245,9 +238,11 @@ def add_final_training_ops(class_count, final_tensor_name, bottleneck_tensor):
             with tf.name_scope(name):
                 if i == 0:
                     logits = bottleneck_input
-                logits = tf.nn.relu(tf.matmul(logits, W) + b)
-
-    final_tensor = tf.nn.sigmoid(logits, name=final_tensor_name)  # 这里改成 sigmoid 0-1
+                if i != len(params) - 1:
+                    logits = tf.nn.relu(tf.matmul(logits, W) + b)
+                else:
+                    logits = tf.nn.sigmoid(tf.matmul(logits, W) + b, name=final_tensor_name)  # 这里改成 sigmoid 0-1
+    final_tensor = logits
 
     tf.summary.histogram('activations', final_tensor)  # final_tensor.shape = [None, class_count]
 
@@ -266,7 +261,7 @@ def add_final_training_ops(class_count, final_tensor_name, bottleneck_tensor):
         tf.summary.scalar('mean_cross_entropy', cross_entropy_mean)
         tf.summary.scalar('mean_square_err', mse)
 
-    l2_loss_rate = 0.01
+    l2_loss_rate = 0.001
     with tf.name_scope('train'):
         # optimizer = tf.train.GradientDescentOptimizer
         optimizer = tf.train.AdamOptimizer
@@ -274,11 +269,10 @@ def add_final_training_ops(class_count, final_tensor_name, bottleneck_tensor):
         for w in W_list:
             l2_loss += l2_loss_rate * tf.nn.l2_loss(w)
         loss = cross_entropy_mean + l2_loss
+        # loss = mse + l2_loss
+        # loss = mse
+        # loss = cross_entropy_mean
         train_step = optimizer(FLAGS.learning_rate).minimize(loss)
-        # train_step = optimizer(FLAGS.learning_rate).minimize(mse)
-        # train_step = optimizer(FLAGS.learning_rate).minimize(mse + cross_entropy_mean)
-
-    # return (train_step, cross_entropy_mean, bottleneck_input, ground_truth_input, final_tensor)
     return (train_step, mse, cross_entropy_mean, bottleneck_input, ground_truth_input, final_tensor)
 
 
@@ -503,6 +497,7 @@ def main(_):
     data_reader.use_test()
     for xs, test_ground_truth, idxs in data_reader.next_batch(FLAGS.test_batch_size):
         test_bottlenecks = [bn_cache.get(idx) for idx in idxs]
+        # test_bottlenecks = np.array(test_bottlenecks).reshape([-1, 2048])
         final_mse_value, predictions = sess.run(
             [final_mse, final_tensor],
             feed_dict={bottleneck_input: test_bottlenecks,
